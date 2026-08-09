@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 
 const express = require("express");
@@ -7,16 +6,8 @@ const mongoose = require("mongoose");
 
 const app = express();
 
-// --------------------------------------------------
-// Middleware
-// --------------------------------------------------
-
 app.use(cors());
 app.use(express.json());
-
-// --------------------------------------------------
-// MongoDB connection
-// --------------------------------------------------
 
 let isConnected = false;
 
@@ -32,29 +23,10 @@ async function connectDB() {
   await mongoose.connect(process.env.MONGO_URL);
 
   isConnected = true;
-
   console.log("Connected to MongoDB");
 }
 
-// Connect to MongoDB before handling API requests
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    console.error("MongoDB connection error:", error);
-
-    return res.status(500).json({
-      message: "Database connection failed",
-      error: error.message,
-    });
-  }
-});
-
-// --------------------------------------------------
 // Routes
-// --------------------------------------------------
-
 app.get("/", (req, res) => {
   res.send("Server is running...");
 });
@@ -65,8 +37,33 @@ app.use("/api/categories", require("./routes/categoryRoute"));
 app.use("/api/expenses", require("./routes/expenseRoute"));
 app.use("/api/stock", require("./routes/stockInRoute"));
 
-// --------------------------------------------------
-// Export app for Vercel
-// --------------------------------------------------
+// Local development
+if (require.main === module) {
+  connectDB()
+    .then(() => {
+      const PORT = process.env.PORT || 5000;
 
-module.exports = app;
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error("MongoDB connection error:", error);
+      process.exit(1);
+    });
+}
+
+// Export for Vercel
+module.exports = async (req, res) => {
+  try {
+    await connectDB();
+    return app(req, res);
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+
+    return res.status(500).json({
+      message: "Database connection failed",
+      error: error.message,
+    });
+  }
+};
