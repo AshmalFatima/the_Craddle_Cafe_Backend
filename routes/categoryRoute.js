@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Category = require('../models/Category');
+const authMiddleware = require('../authMiddleware');
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
     const { name, description } = req.body;
     if (!name || !name.trim()) {
         return res.status(400).json({ message: 'Please provide a name for the category' });
@@ -28,10 +29,10 @@ router.post('/', async (req, res) => {
 });
 
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
     try {
         const categories = await Category.find();
-        res.json(categories);
+        res.status(200).json(categories);
     } catch (err) {
         console.error('Error fetching categories:', err);
         res.status(500).json({ message: 'Server error' });
@@ -39,7 +40,7 @@ router.get('/', async (req, res) => {
 });
 
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", authMiddleware, async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid category ID" });
@@ -49,7 +50,7 @@ router.get("/:id", async (req, res) => {
         if (!category) {
             return res.status(404).json({ message: "Category not found" });
         }
-        res.json(category);
+        res.status(200).json(category);
     } catch (err) {
         console.error('Error fetching category:', err);
         res.status(500).json({ message: 'Server error' });
@@ -58,14 +59,14 @@ router.get("/:id", async (req, res) => {
 
 
 
-router.get("/name/:name", async (req, res) => {
+router.get("/name/:name", authMiddleware, async (req, res) => {
     const { name } = req.params;
     try {
         const category = await Category.findOne({ name: { $regex: `^${name}$`, $options: 'i' } });
         if (!category) {
             return res.status(404).json({ message: "Category not found" });
         }
-        res.json(category);
+        res.status(200).json(category);
     }
     catch (err) {
         console.error('Error fetching category by name:', err);
@@ -75,7 +76,7 @@ router.get("/name/:name", async (req, res) => {
 
 
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", authMiddleware, async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid category ID" });
@@ -102,7 +103,7 @@ router.put("/:id", async (req, res) => {
         category.name = name.trim();
         category.description = description?.trim() || "";
         await category.save();
-        res.json({ message: "Category updated successfully", success: true });
+        res.status(200).json({ message: "Category updated successfully", success: true });
     } catch (err) {
         console.error('Error updating category:', err);
         res.status(500).json({ message: 'Server error' });
@@ -111,7 +112,7 @@ router.put("/:id", async (req, res) => {
 
 
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id",authMiddleware, async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid category ID" });
@@ -123,7 +124,7 @@ router.delete("/:id", async (req, res) => {
             return res.status(404).json({ message: 'Category not found' });
         }
 
-        res.json({ message: 'Category deleted successfully', success: true });
+        res.status(200).json({ message: 'Category deleted successfully', success: true });
     } catch (err) {
         console.error('Error deleting category:', err);
         res.status(500).json({ message: 'Server error' });
@@ -133,8 +134,6 @@ router.delete("/:id", async (req, res) => {
 
 
 
-router.delete("/name/:name", async (req, res) => {
-});
 
 
 

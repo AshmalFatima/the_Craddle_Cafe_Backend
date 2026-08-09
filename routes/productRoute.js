@@ -3,39 +3,89 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const StockIn = require('../models/StockIn');
+const authMiddleware = require('../authMiddleware');
 
 
+// CREATE product + initial stock-in entry
+router.post('/', authMiddleware, async (req, res) => {
+    const { category, name, variantName, petStock, itemsPerPet, sellingPrice, petPrice } = req.body;
 
-router.post('/', async (req, res) => {
-    const { category, name, variantName, costPrice, sellingPrice , stock } = req.body;
-    if (!category || !name || !variantName || !costPrice || !sellingPrice || !category.trim() || !name.trim() || !variantName.trim() || !costPrice.toString().trim() || !sellingPrice.toString().trim()) {
-        return res.status(400).json({ message: 'Please provide all required fields' });
+    if (!category || !name || !variantName || !petStock || !itemsPerPet || !sellingPrice || !petPrice ||
+        !category.trim() || !name.trim() || !variantName.trim() || !petStock.toString().trim() ||
+        !itemsPerPet.toString().trim() || !sellingPrice.toString().trim() || !petPrice.toString().trim()) {
+        return res.status(400).json({
+            message: "Please provide category, name, variant name, stock, pet price and selling price"
+        });
     }
     if (!mongoose.Types.ObjectId.isValid(category)) {
         return res.status(400).json({ message: 'Invalid category ID' });
     }
-    if (isNaN(costPrice) || isNaN(sellingPrice)) {
-        return res.status(400).json({ message: 'Cost price and selling price must be valid numbers' });
+    if (isNaN(petStock) || isNaN(itemsPerPet) || isNaN(sellingPrice) || isNaN(petPrice)) {
+        return res.status(400).json({ message: 'Stock and selling price must be valid numbers' });
     }
-    if (Number(costPrice) <= 0 || Number(sellingPrice) <= 0) {
-        return res.status(400).json({ message: 'Cost price and selling price must be greater than 0' });
+    if (Number(petStock) <= 0 || Number(itemsPerPet) <= 0 || Number(sellingPrice) <= 0 || Number(petPrice) <= 0) {
+        return res.status(400).json({ message: 'Stock and selling price must be greater than 0' });
     }
-    if(costPrice > sellingPrice){
-        return res.status(400).json({ message: 'Cost price cannot be greater than selling price' });
+
+    const categoryExists = await Category.findById(category);
+    if (!categoryExists) {
+        return res.status(404).json({ message: 'Category not found' });
     }
-    if(isNaN(stock) || Number(stock) < 0){
-        return res.status(400).json({ message: 'Stock must be a valid non-negative number' });
+
+    const unitPrice = Number(petPrice) / Number(itemsPerPet);
+    const sellingPriceNum = Number(sellingPrice);
+
+    if (unitPrice > sellingPriceNum) {
+        return res.status(400).json({
+            message: "Selling price cannot be less than cost price"
+        });
     }
-    
-    const sku = `${name.trim().substring(0,3).toUpperCase()}-${variantName.trim().substring(0,3).toUpperCase()}-${costPrice.toString().toUpperCase()}`; // Generate SKU based on name, variantName, and timestamp
+
+    const unitStock = Number(itemsPerPet) * Number(petStock);
+    const sku = `${name.trim().substring(0, 3).toUpperCase()}-${variantName.trim().substring(0, 3).toUpperCase()}-${unitPrice.toFixed(2).replace('.', '')}`;
+
     try {
-        const existingProduct = await Product.findOne({ name: name.trim(), variantName: variantName.trim(), costPrice, category }); // Check if a product with the same name, variantName, costPrice, and category already exists
+        const existingProduct = await Product.findOne({ name: name.trim(), variantName: variantName.trim(), category });
         if (existingProduct) {
             return res.status(400).json({ message: 'Product already exists' });
         }
-        const newProduct = new Product({ category, name: name.trim(), variantName: variantName.trim(), costPrice, sku, sellingPrice , stock : stock?Number(stock):0 });
+
+        const newProduct = new Product({
+            category,
+            name: name.trim(),
+            variantName: variantName.trim(),
+            unitPrice,
+            petPrice: Number(petPrice),
+            sku,
+            itemsPerPet: Number(itemsPerPet),
+            sellingPrice: sellingPriceNum,
+            petStock: Number(petStock),
+            unitStock
+        });
+
         await newProduct.save();
-        res.status(201).json({ message: 'Product added successfully', success: true });
+
+        const stockSellingPrice = sellingPriceNum * unitStock;
+        const stockCostPrice = Number(petPrice) * Number(petStock);
+
+        const stockInEntry = new StockIn({
+            product: newProduct._id,
+            type: 'in',
+            petStock: Number(petStock),
+            unitStock,
+            itemsPerPet: Number(itemsPerPet),
+            unitPrice,
+            petPrice: Number(petPrice),
+            stockSellingPrice,
+            stockCostPrice,
+            profit: stockSellingPrice - stockCostPrice,
+        });
+        await stockInEntry.save();
+
+        const populated = await Product.findById(newProduct._id).populate('category', 'name');
+
+        res.status(201).json({ message: 'Product added successfully', success: true, product: populated });
 
     } catch (err) {
         console.error('Error adding product:', err);
@@ -44,127 +94,112 @@ router.post('/', async (req, res) => {
 });
 
 
-router.get('/', async (req, res) => {
+// LIST all products
+router.get('/', authMiddleware, async (req, res) => {
     try {
-        const products =  await Product.find().populate('category', 'name').sort({createdAt: -1}); // Populate category name       
-        if (!products || products.length === 0) {
-            return res.status(404).json({ message: 'No products found' });
-        }
-        res.json(products);
-    }
-    catch (err) {
+        const products = await Product.find().populate('category', 'name').sort({ createdAt: -1 });
+        res.json(products || []);
+    } catch (err) {
         console.error('Error fetching products:', err);
         res.status(500).json({ message: 'Server error' });
     }
-
 });
 
 
-router.put("/:id", async (req, res) => {
+// UPDATE product details only (name, variant, category, petPrice, sellingPrice, itemsPerPet)
+// Stock quantities are never touched here — use /api/stock/in and /api/stock/out for that.
+router.put("/:id", authMiddleware, async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ message: "Inavlid product ID" });
+        return res.status(400).json({ message: "Invalid product ID" });
     }
-    const {
-        category,
-        name,
-        variantName,
-        costPrice,
-        sellingPrice,
-        stock
-    } = req.body;
+
+    const { category, name, variantName, petPrice, sellingPrice, itemsPerPet } = req.body;
+
+    if (!name || !variantName || !name.trim() || !variantName.trim() || !category || !category.trim()) {
+        return res.status(400).json({
+            message: "Please provide name, variant name, and category"
+        });
+    }
+    if (!mongoose.Types.ObjectId.isValid(category)) {
+        return res.status(400).json({ message: 'Invalid category ID' });
+    }
+    if (isNaN(petPrice) || isNaN(sellingPrice) || Number(petPrice) <= 0 || Number(sellingPrice) <= 0) {
+        return res.status(400).json({
+            message: "Pet price and selling price must be valid numbers greater than 0"
+        });
+    }
+    if (isNaN(itemsPerPet) || Number(itemsPerPet) <= 0) {
+        return res.status(400).json({
+            message: "Items per pet must be a valid number greater than 0"
+        });
+    }
 
     try {
-
-        // Check if product exists
         const product = await Product.findById(id);
-
         if (!product) {
-            return res.status(404).json({
-                message: "Product not found"
-            });
+            return res.status(404).json({ message: "Product not found" });
         }
 
-        if (!mongoose.Types.ObjectId.isValid(category)) {
-            return res.status(400).json({ message: 'Invalid category ID' });
-        }
         const categoryExists = await Category.findById(category);
-
         if (!categoryExists) {
             return res.status(404).json({ message: "Category not found" });
         }
 
-        if(!name || !variantName || !costPrice || !sellingPrice || !name.trim() || !variantName.trim() || !costPrice.toString().trim() || !sellingPrice.toString().trim() || !stock.toString().trim()){ 
-            return res.status(400).json({
-                message: "Please provide name, variant name, stock , cost price and selling price"
-            });
-        }
-        if (isNaN(costPrice) || isNaN(sellingPrice)) {
-            return res.status(400).json({
-                message: "Cost price and selling price must be valid numbers"
-            });
-        }
-        if (Number(costPrice) <= 0 || Number(sellingPrice) <= 0) {
-            return res.status(400).json({
-                message: "Cost price and selling price must be greater than 0"
-            });
-        }
-        if(costPrice > sellingPrice){
-            return res.status(400).json({
-                message: "Cost price cannot be greater than selling price"
-            });
-        }
-        if(isNaN(stock) || Number(stock) < 0){
-            return res.status(400).json({
-                message: "Stock must be a valid non-negative number"
-            });
-        }
-        // Check if another product with the same details already exists
         const existingProduct = await Product.findOne({
-            _id: { $ne: id }, // Ignore current product
+            _id: { $ne: id },
             category,
-            name,
-            variantName,
-            costPrice
+            name: name.trim(),
+            variantName: variantName.trim()
         });
-
         if (existingProduct) {
-            return res.status(400).json({
-                message: "Product already exists."
-            });
+            return res.status(400).json({ message: "Product already exists." });
         }
 
-        
-        // Update product
+        const newItemsPerPet = Number(itemsPerPet);
+        const newPetPrice = Number(petPrice);
+        const newSellingPrice = Number(sellingPrice);
+
+        // recompute cost basis off the NEW petPrice / itemsPerPet (bug fix: used to reference
+        // an undefined `products.itemsPerPet`, which crashed this route)
+        const unitPrice = newPetPrice / newItemsPerPet;
+
+        if (unitPrice > newSellingPrice) {
+            return res.status(400).json({ message: "Selling price cannot be less than cost price" });
+        }
+
+        // petStock (number of cartons/pets) doesn't change here, but unitStock must be
+        // recalculated if itemsPerPet changed
+        const unitStock = product.petStock * newItemsPerPet;
+
+        const sku = `${name.trim().substring(0, 3).toUpperCase()}-${variantName.trim().substring(0, 3).toUpperCase()}-${product.sku.split('-').pop()}`;
+
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
             {
                 category,
-                name,
-                variantName,
-                costPrice,
-                sellingPrice,
-                stock  // If stock is provided, update it; otherwise, keep the existing stock
-        
+                name: name.trim(),
+                variantName: variantName.trim(),
+                unitPrice,
+                sellingPrice: newSellingPrice,
+                sku,
+                petPrice: newPetPrice,
+                itemsPerPet: newItemsPerPet,
+                unitStock
             },
-            {
-                new: true,
-                runValidators: true
-            }
+            { new: true, runValidators: true }
         ).populate("category", "name");
 
         res.status(200).json({ message: "Product updated successfully", updatedProduct });
 
     } catch (err) {
         console.error("Error updating product:", err);
-        res.status(500).json({
-            message: "Server Error"
-        });
+        res.status(500).json({ message: "Server error" });
     }
 });
 
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid product ID" });
@@ -176,171 +211,13 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Product not found' });
         }
         await Product.findByIdAndDelete(id);
+        await StockIn.deleteMany({ product: id });
         res.json({ message: 'Product deleted successfully' });
     } catch (err) {
         console.error('Error deleting product:', err);
         res.status(500).json({ message: 'Server error' });
     }
 });
-
-
-router.get("/search/:search", async (req, res) => {
-    const { search } = req.params;
-
-    try {
-        let filter = {};
-
-        if (search) {
-            // Find matching categories first
-            const categories = await Category.find({
-                name: { $regex: search, $options: "i" }
-            }).select("_id");
-
-            const categoryIds = categories.map(cat => cat._id);
-
-            filter = {
-                $or: [
-                    { name: { $regex: search, $options: "i" } },
-                    { sku: { $regex: search, $options: "i" } },
-                    { category: { $in: categoryIds } }
-                ]
-            };
-        }
-
-        const products = await Product.find(filter)
-            .populate("category", "name");
-
-        res.status(200).json(products);
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Server Error" });
-    }
-});
-
-
-// Filter products by category and/or price range
-router.get("/filter", async (req, res) => {
-    const { category, minPrice, maxPrice } = req.query;
-
-    // User must provide at least one filter
-    if (!category && !minPrice && !maxPrice) {
-        return res.status(400).json({
-            message: "Please provide at least one filter."
-        });
-    }
-
-    if (category && !mongoose.Types.ObjectId.isValid(category)) {
-        return res.status(400).json({
-            message: "Invalid category ID."
-        });
-    }
-
-    // Validate price values
-    if (minPrice && isNaN(minPrice)) {
-        return res.status(400).json({
-            message: "Minimum price must be a valid number."
-        });
-    }
-
-    if (maxPrice && isNaN(maxPrice)) {
-        return res.status(400).json({
-            message: "Maximum price must be a valid number."
-        });
-    }
-
-    if (minPrice && Number(minPrice) <= 0) {
-        return res.status(400).json({
-            message: "Minimum price cannot be less than or equal to 0."
-        });
-    }
-
-    if (maxPrice && Number(maxPrice) <= 0) {
-        return res.status(400).json({
-            message: "Maximum price cannot be less than or equal to 0."
-        });
-    }
-
-    // Check if min price is greater than max price
-    if (
-        minPrice &&
-        maxPrice &&
-        Number(minPrice) > Number(maxPrice)
-    ) {
-        return res.status(400).json({
-            message: "Minimum price cannot be greater than maximum price."
-        });
-    }
-
-    try {
-        let filter = {};
-
-        // Filter by category (expects Category ObjectId)
-        if (category) {
-            filter.category = category;
-        }
-
-        // Filter by minimum price
-        if (minPrice) {
-            filter.sellingPrice = {
-                ...filter.sellingPrice,
-                $gte: Number(minPrice)
-            };
-        }
-
-        // Filter by maximum price
-        if (maxPrice) {
-            filter.sellingPrice = {
-                ...filter.sellingPrice,
-                $lte: Number(maxPrice)
-            };
-        }
-
-        // Find matching products and populate category name
-        const products = await Product.find(filter)
-            .populate("category", "name");
-
-        res.status(200).json(products);
-
-    } catch (err) {
-        console.error("Error filtering products:", err);
-        res.status(500).json({
-            message: "Server Error"
-        });
-    }
-});
-
-
-router.get("/active", async (req, res) => {
-    try {
-        const activeProducts = await Product.find({ isActive: true }).populate("category", "name");
-        res.status(200).json(activeProducts);
-    } catch (err) {
-        console.error("Error fetching active products:", err);
-        res.status(500).json({
-            message: "Server Error"
-        });
-    }
-});
-
-
-router.get("/inactive", async (req, res) => {
-    try {
-        const inactiveProducts = await Product.find({ isActive: false }).populate("category", "name");
-        res.status(200).json(inactiveProducts);
-    } catch (err) {
-        console.error("Error fetching inactive products:", err);
-        res.status(500).json({
-            message: "Server Error"
-        });
-    }
-});
-
-
-
-
-
-
 
 
 module.exports = router;

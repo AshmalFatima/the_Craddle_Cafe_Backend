@@ -5,16 +5,25 @@ const Expense = require('../models/Expense');
 const authMiddleware = require('../authMiddleware');
 const User = require('../models/User');
 
-router.post("/", authMiddleware, async (req, res) => {
-    const { name, amount, description } = req.body;
+const VALID_TYPES = ["Cash In", "Cash Out"];
 
+router.post("/", authMiddleware, async (req, res) => {
+    const { name, amount, description, type } = req.body;
+
+    // name/title is now optional — falls back to the type (e.g. "Cash In")
     if (
-        !name?.trim() ||
         amount === undefined ||
-        amount === null 
+        amount === null ||
+        !type?.trim()
     ) {
         return res.status(400).json({
-            message: "Please provide name and amount for the expense",
+            message: "Please provide amount and type for the expense",
+        });
+    }
+
+    if (!VALID_TYPES.includes(type.trim())) {
+        return res.status(400).json({
+            message: "Type must be either 'Cash In' or 'Cash Out'",
         });
     }
 
@@ -32,9 +41,10 @@ router.post("/", authMiddleware, async (req, res) => {
 
     try {
         const newExpense = new Expense({
-            title: name.trim(),
+            title: name?.trim() || type.trim(),
             amount: Number(amount),
             description: description?.trim() || "",
+            type: type.trim(),
             addedBy: req.user.userId,
         });
 
@@ -43,6 +53,7 @@ router.post("/", authMiddleware, async (req, res) => {
         res.status(201).json({
             message: "Expense added successfully",
             success: true,
+            expense: newExpense,
         });
     } catch (err) {
         console.error("Error adding expense:", err);
@@ -53,22 +64,13 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 
+// Returns overall total, plus a breakdown of Cash In / Cash Out totals.
+// Optional startDate/endDate query params scope the totals to a date range.
 router.get("/total", authMiddleware, async (req, res) => {
-    const { startDate, endDate, username } = req.query;
+    const { startDate, endDate } = req.query;
 
     const match = {};
 
-    // Salesman: only their own expenses
-    if (req.user.role === "salesman") {
-        match.addedBy = new mongoose.Types.ObjectId(req.user.userId);
-        if (username) {
-            return res.status(403).json({
-                message: "You are not authorized to filter by username"
-            });
-        }
-    }
-
-    // Date range filter
     if (startDate || endDate) {
         if (!startDate || !endDate) {
             return res.status(400).json({
@@ -100,32 +102,38 @@ router.get("/total", authMiddleware, async (req, res) => {
     }
 
     try {
-        // Admin can filter by username
-        if (req.user.role === "admin" && username) {
-            const user = await User.findOne({
-                name: { $regex: username, $options: "i" }
-            });
-
-            if (!user) {
-                return res.json({ total: 0 });
-            }
-
-            match.addedBy = user._id;
-        }
-
-        const totalExpenses = await Expense.aggregate([
+        const totalsByType = await Expense.aggregate([
             { $match: match },
             {
                 $group: {
-                    _id: null,
-                    total: { $sum: "$amount" }
+                    _id: "$type",
+                    total: { $sum: "$amount" },
+                    count: { $sum: 1 }
                 }
             }
         ]);
 
-        res.json({
-            total: totalExpenses[0]?.total || 0
+        const result = {
+            cashIn: 0,
+            cashOut: 0,
+            cashInCount: 0,
+            cashOutCount: 0,
+        };
+
+        totalsByType.forEach((t) => {
+            if (t._id === "Cash In") {
+                result.cashIn = t.total;
+                result.cashInCount = t.count;
+            } else if (t._id === "Cash Out") {
+                result.cashOut = t.total;
+                result.cashOutCount = t.count;
+            }
         });
+
+        result.balance = result.cashIn - result.cashOut;
+        result.total = result.cashIn + result.cashOut;
+
+        res.json(result);
 
     } catch (err) {
         console.error("Error calculating total expenses:", err);
@@ -137,25 +145,38 @@ router.get("/total", authMiddleware, async (req, res) => {
 
 
 router.get("/search", authMiddleware, async (req, res) => {
-    const { name, minAmount, maxAmount, date, username } = req.query;
+    const {
+        name,
+        description,
+        minAmount,
+        maxAmount,
+        date,
+        startDate,
+        endDate,
+        username,
+        type,
+    } = req.query;
 
     const filter = {};
-
-    
-    // Salesman can search only their own expenses
-    if (req.user.role === "salesman") {
-        filter.addedBy = req.user.userId;
-        if (username) {
-            return res.status(403).json({
-                message: "You are not authorized to filter by username"
-            });
-        }
-    }
 
     if (name) {
         filter.title = { $regex: name, $options: "i" };
     }
 
+    if (description) {
+        filter.description = { $regex: description, $options: "i" };
+    }
+
+    if (type) {
+        if (!VALID_TYPES.includes(type)) {
+            return res.status(400).json({
+                message: "Type must be either 'Cash In' or 'Cash Out'"
+            });
+        }
+        filter.type = type;
+    }
+
+    // Single-day filter (kept for backwards compatibility)
     if (date) {
         const parsedDate = new Date(date);
 
@@ -174,6 +195,37 @@ router.get("/search", authMiddleware, async (req, res) => {
         filter.expenseDate = {
             $gte: startOfDay,
             $lte: endOfDay
+        };
+    }
+
+    // Date range filter (from / to)
+    if (startDate || endDate) {
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                message: "Please provide both startDate and endDate"
+            });
+        }
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return res.status(400).json({
+                message: "Invalid date format"
+            });
+        }
+
+        if (start > end) {
+            return res.status(400).json({
+                message: "startDate cannot be greater than endDate"
+            });
+        }
+
+        end.setHours(23, 59, 59, 999);
+
+        filter.expenseDate = {
+            $gte: start,
+            $lte: end
         };
     }
 
@@ -225,23 +277,18 @@ router.get("/search", authMiddleware, async (req, res) => {
     }
 
     try {
-        
-        let expenses = await Expense.find(filter)
-            .populate("addedBy", "name contact role");
 
-        // Admin can filter by username
-        if (req.user.role === "admin" && username) {
+        let expenses = await Expense.find(filter)
+            .populate("addedBy", "name  role")
+            .sort({ expenseDate: -1 });
+
+
+        if (username) {
             expenses = expenses.filter(expense =>
-                expense.addedBy.name
-                    .toLowerCase()
+                expense.addedBy?.name
+                    ?.toLowerCase()
                     .includes(username.toLowerCase())
             );
-        }
-
-        if (expenses.length === 0) {
-            return res.status(404).json({
-                message: "No expenses found matching the criteria"
-            });
         }
 
         res.json(expenses);
@@ -257,26 +304,12 @@ router.get("/search", authMiddleware, async (req, res) => {
 
 router.get("/", authMiddleware, async (req, res) => {
     try {
-        let expenses;
 
-        // Admin can see all expenses
-        if (req.user.role === "admin") {
-            expenses = await Expense.find()
-                .populate("addedBy", "name contact role");
-        }
-        // Salesman can see only their own expenses
-        else {
-            expenses = await Expense.find({
-                addedBy: req.user.userId
-            }).populate("addedBy", "name contact role");
-        }
-        if (!expenses || expenses.length === 0) {
-            return res.status(404).json({
-                message: "No expenses found"
-            });
-        }
+        const expenses = await Expense.find()
+            .populate("addedBy", "name  role")
+            .sort({ expenseDate: -1 });
 
-        res.json(expenses);
+        res.status(200).json(expenses);
 
     } catch (err) {
         console.error("Error fetching expenses:", err);
@@ -299,7 +332,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
     try {
         const expense = await Expense.findById(id)
-            .populate("addedBy", "name contact role");
+            .populate("addedBy", "name  role");
 
         if (!expense) {
             return res.status(404).json({
@@ -307,17 +340,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
             });
         }
 
-        // Salesman can only view their own expense
-        if (
-            req.user.role === "salesman" &&
-            expense.addedBy._id.toString() !== req.user.userId
-        ) {
-            return res.status(403).json({
-                message: "You are not authorized to view this expense"
-            });
-        }
-
-        res.json(expense);
+        res.status(200).json(expense);
 
     } catch (err) {
         console.error("Error fetching expense:", err);
@@ -330,18 +353,21 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
 router.put("/:id", authMiddleware, async (req, res) => {
     const { id } = req.params;
-    const { name, amount, description } = req.body;
+    const { name, amount, description, type } = req.body;
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid expense ID" });
     }
-    if (!name || !amount  || !name.trim() ) {
-        return res.status(400).json({ message: 'Please provide all required fields' });
+    if (amount === undefined || amount === null || !type || !type.trim()) {
+        return res.status(400).json({ message: 'Please provide amount and type' });
+    }
+    if (!VALID_TYPES.includes(type.trim())) {
+        return res.status(400).json({ message: "Type must be either 'Cash In' or 'Cash Out'" });
+    }
+    if (isNaN(amount)) {
+        return res.status(400).json({ message: 'Amount must be a number' });
     }
     if (Number(amount) <= 0) {
         return res.status(400).json({ message: 'Amount must be greater than 0' });
-    }
-    if (amount && isNaN(amount)) {
-        return res.status(400).json({ message: 'Amount must be a number' });
     }
     try {
         const expense = await Expense.findById(id);
@@ -355,11 +381,12 @@ router.put("/:id", authMiddleware, async (req, res) => {
             });
         }
 
-        expense.title = name.trim();
+        expense.title = name?.trim() || type.trim();
         expense.amount = Number(amount);
         expense.description = description?.trim() || "";
+        expense.type = type.trim();
         await expense.save();
-        res.json({ message: "Expense updated successfully", success: true });
+        res.json({ message: "Expense updated successfully", success: true, expense });
     } catch (err) {
         console.error('Error updating expense:', err);
         res.status(500).json({ message: 'Server error' });
@@ -379,14 +406,9 @@ router.delete("/:id", authMiddleware, async (req, res) => {
         if (!expense) {
             return res.status(404).json({ message: "Expense not found" });
         }
-        if ( req.user.role === "salesman" &&
-            expense.addedBy.toString() !== req.user.userId) {
-            return res.status(403).json({
-                message: "You are not authorized to delete this expense"
-            });
-        }
+
         await expense.deleteOne();
-        res.json({ message: "Expense deleted successfully", success: true });
+        res.status(200).json({ message: "Expense deleted successfully", success: true });
     } catch (err) {
         console.error('Error deleting expense:', err);
         res.status(500).json({ message: 'Server error' });
@@ -394,14 +416,4 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 });
 
 
-
-
-
-
-
-
-
-
-
 module.exports = router;
-

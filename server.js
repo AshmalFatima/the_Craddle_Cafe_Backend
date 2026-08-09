@@ -16,7 +16,7 @@ app.use("/api/users", require("./routes/userRoute"));
 app.use("/api/products", require("./routes/productRoute"));
 app.use("/api/categories", require("./routes/categoryRoute"));
 app.use("/api/expenses", require("./routes/expenseRoute"));
-app.use("/api/stocks", require("./routes/stockInRoute"));
+app.use("/api/stock", require("./routes/stockInRoute"));
 const PORT = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGO_URL)
     .then(() => {

@@ -1,40 +1,73 @@
 const mongoose = require("mongoose");
 
 const stockInSchema = new mongoose.Schema(
-{
-    product:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"Product",
-        required:true
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
     },
 
-    quantity:{
-        type:Number,
-        required:true
-    },
-   
-    note:{
-        type:String,
-        default:""
+    // "in" = stock added, "out" = stock removed/sold/damaged etc.
+    type: {
+      type: String,
+      enum: ["in", "out"],
+      default: "in",
+      required: true,
     },
 
-
-    purchasePrice:{
-        type:Number,
-        default:0
+    petStock: {
+      type: Number,
+      required: true,
     },
 
-
-    addedBy:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"User"
+    unitStock: {
+      type: Number,
+      required: true,
     },
 
-    addedAt:{
-        type:Date,
-        default:Date.now
-    }
-},
-{timestamps:true});
+    itemsPerPet: {
+      type: Number,
+      required: true,
+    },
 
-module.exports = mongoose.model("StockIn",stockInSchema);
+    // snapshot of the product's pricing at the time of this movement
+    unitPrice: {
+      type: Number,
+      required: true,
+    },
+
+    petPrice: {
+      type: Number,
+      required: true,
+    },
+
+    stockSellingPrice: {
+      type: Number,
+      required: true,
+    },
+
+    stockCostPrice: {
+      type: Number,
+      required: true,
+    },
+
+    profit: {
+      type: Number,
+      required: true,
+    },
+
+    note: {
+      type: String,
+      default: "",
+    },
+
+    addedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("StockIn", stockInSchema);
