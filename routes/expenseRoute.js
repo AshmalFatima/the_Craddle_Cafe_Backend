@@ -3,8 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Expense = require('../models/Expense');
 const authMiddleware = require('../authMiddleWare');
-const User = require('../models/User');
-
+const User = require("../models/user");
 const VALID_TYPES = ["Cash In", "Cash Out"];
 
 router.post("/", authMiddleware, async (req, res) => {
