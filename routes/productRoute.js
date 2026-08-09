@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const StockIn = require('../models/StockIn');
-const authMiddleware = require('../authMiddleware');
+const authMiddleware = require('../authMiddleWare');
 
 
 // CREATE product + initial stock-in entry

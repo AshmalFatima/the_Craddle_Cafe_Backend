@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Expense = require('../models/Expense');
-const authMiddleware = require('../authMiddleware');
+const authMiddleware = require('../authMiddleWare');
 const User = require('../models/User');
 
 const VALID_TYPES = ["Cash In", "Cash Out"];

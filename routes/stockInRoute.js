@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const StockIn = require('../models/StockIn');
 const Product = require('../models/Product');
-const authMiddleware = require('../authMiddleware');
+const authMiddleware = require('../authMiddleWare');
 
 
 // Shared helper: a movement can be specified either in whole pets/cartons (petStock)
