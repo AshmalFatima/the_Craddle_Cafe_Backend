@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const StockIn = require('../models/StockIn');
-const Product = require('../models/Product');
+const StockIn = require('../models/stockIn');
+const Product = require('../models/product');
 const authMiddleware = require('../authMiddleWare');
 
 

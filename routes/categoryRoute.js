@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Category = require('../models/Category');
+const Category = require('../models/category');
 const authMiddleware = require('../authMiddleWare');
 
 router.post('/', authMiddleware, async (req, res) => {

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Product = require('../models/Product');
-const Category = require('../models/Category');
-const StockIn = require('../models/StockIn');
+const Product = require('../models/product');
+const Category = require('../models/category');
+const StockIn = require('../models/stockIn');
 const authMiddleware = require('../authMiddleWare');
 
 
