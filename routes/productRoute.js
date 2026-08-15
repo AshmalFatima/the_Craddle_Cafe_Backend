@@ -46,9 +46,9 @@ router.post('/', authMiddleware, async (req, res) => {
 const cleanName = name.trim().toUpperCase().replace(/\s+/g, '');
 const cleanVariant = variantName.trim().toUpperCase().replace(/\s+/g, '');
 
-const sku = `${cleanName.substring(0, 6)}-${cleanVariant.substring(0, 6)}-${unitPrice
+const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
   .toFixed(2)
-  .replace('.', '')}`;
+  .replace('.', '')}-${Date.now().toString().slice(-6)}`;
 
     try {
         const existingProduct = await Product.findOne({ name: name.trim(), variantName: variantName.trim(), category });
@@ -177,8 +177,9 @@ router.put("/:id", authMiddleware, async (req, res) => {
         // recalculated if itemsPerPet changed
         const unitStock = product.petStock * newItemsPerPet;
 
-        const sku = `${name.trim().substring(0, 3).toUpperCase()}-${variantName.trim().substring(0, 3).toUpperCase()}-${product.sku.split('-').pop()}`;
-
+       const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
+  .toFixed(2)
+  .replace('.', '')}-${Date.now().toString().slice(-6)}`;
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
             {
