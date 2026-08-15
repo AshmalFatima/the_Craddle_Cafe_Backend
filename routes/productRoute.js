@@ -177,15 +177,20 @@ router.put("/:id", authMiddleware, async (req, res) => {
         // recalculated if itemsPerPet changed
         const unitStock = product.petStock * newItemsPerPet;
 
-       const now = new Date();
+   
+
+const cleanName = name.trim();
+const cleanVariant = variantName.trim();
+
+const now = new Date();
 
 const timestamp =
-  `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}` +
-  `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
+    `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}` +
+    `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
 
 const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
-  .toFixed(2)
-  .replace('.', '')}-${timestamp}`;
+    .toFixed(2)
+    .replace(".", "")}-${timestamp}`;
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
             {
@@ -206,7 +211,7 @@ const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring
 
     } catch (err) {
         console.error("Error updating product:", err);
-        res.status(500).json({ message: err });
+        res.status(500).json({ message: err.message });
     }
 });
 
