@@ -46,9 +46,16 @@ router.post('/', authMiddleware, async (req, res) => {
 const cleanName = name.trim().toUpperCase().replace(/\s+/g, '');
 const cleanVariant = variantName.trim().toUpperCase().replace(/\s+/g, '');
 
+
+const now = new Date();
+
+const timestamp =
+    `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}` +
+    `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
+
 const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
-  .toFixed(2)
-  .replace('.', '')}-${Date.now().toString().slice(-6)}`;
+    .toFixed(2)
+    .replace(".", "")}-${timestamp}`;
 
     try {
         const existingProduct = await Product.findOne({ name: name.trim(), variantName: variantName.trim(), category });
@@ -94,7 +101,7 @@ const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring
 
     } catch (err) {
         console.error('Error adding product:', err);
-        res.status(500).json({ message: err});
+        res.status(500).json({ message: err.message});
     }
 });
 
