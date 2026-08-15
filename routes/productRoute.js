@@ -177,9 +177,15 @@ router.put("/:id", authMiddleware, async (req, res) => {
         // recalculated if itemsPerPet changed
         const unitStock = product.petStock * newItemsPerPet;
 
-       const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
+       const now = new Date();
+
+const timestamp =
+  `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}` +
+  `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
+
+const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
   .toFixed(2)
-  .replace('.', '')}-${Date.now().toString().slice(-6)}`;
+  .replace('.', '')}-${timestamp}`;
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
             {
