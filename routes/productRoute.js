@@ -43,7 +43,12 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     const unitStock = Number(itemsPerPet) * Number(petStock);
-    const sku = `${name.trim().substring(0, 3).toUpperCase()}-${variantName.trim().substring(0, 3).toUpperCase()}-${unitPrice.toFixed(2).replace('.', '')}`;
+const cleanName = name.trim().toUpperCase().replace(/\s+/g, '');
+const cleanVariant = variantName.trim().toUpperCase().replace(/\s+/g, '');
+
+const sku = `${cleanName.substring(0, 6)}-${cleanVariant.substring(0, 6)}-${unitPrice
+  .toFixed(2)
+  .replace('.', '')}`;
 
     try {
         const existingProduct = await Product.findOne({ name: name.trim(), variantName: variantName.trim(), category });
