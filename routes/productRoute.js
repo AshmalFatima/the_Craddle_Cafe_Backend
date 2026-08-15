@@ -206,7 +206,7 @@ const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring
 
     } catch (err) {
         console.error("Error updating product:", err);
-        res.status(500).json({ message: "Server e" });
+        res.status(500).json({ message: err });
     }
 });
 
