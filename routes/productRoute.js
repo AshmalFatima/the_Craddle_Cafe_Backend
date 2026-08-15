@@ -89,7 +89,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
     } catch (err) {
         console.error('Error adding product:', err);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: err});
     }
 });
 
