@@ -206,7 +206,7 @@ const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring
 
     } catch (err) {
         console.error("Error updating product:", err);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: "Server e" });
     }
 });
 
@@ -227,7 +227,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         res.json({ message: 'Product deleted successfully' });
     } catch (err) {
         console.error('Error deleting product:', err);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: err });
     }
 });
 
