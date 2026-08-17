@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Due = require('../models/dues');
+const Dues = require('../models/dues');
 const Customer = require('../models/customer');
 const Product = require('../models/product');
 const authMiddleware = require('../authMiddleWare');
@@ -42,6 +42,8 @@ router.get('/', authMiddleware, async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
+
+   
 
     const totalCount = await Dues.countDocuments(query);
 
