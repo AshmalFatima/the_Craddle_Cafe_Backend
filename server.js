@@ -38,6 +38,7 @@ app.use("/api/expenses", require("./routes/expenseRoute"));
 app.use("/api/stock", require("./routes/stockInRoute"));
 app.use("/api/dues", require("./routes/dueRoute"));
 app.use("/api/customers", require("./routes/customerRoute"));
+app.use("/api/dashboard", require("./routes/dashboardRoute"));
 // Local development
 if (require.main === module) {
   connectDB()
