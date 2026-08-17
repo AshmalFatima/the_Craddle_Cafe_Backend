@@ -128,7 +128,7 @@ router.post('/', authMiddleware, async (req, res) => {
       totalAmount,
       paid,
       remaining,
-      addedBy: req.user?._id, // requires auth middleware to populate req.user
+      addedBy: req.user?.userId, // requires auth middleware to populate req.user
     });
 
     const populated = await due.populate([
