@@ -36,7 +36,8 @@ app.use("/api/products", require("./routes/productRoute"));
 app.use("/api/categories", require("./routes/categoryRoute"));
 app.use("/api/expenses", require("./routes/expenseRoute"));
 app.use("/api/stock", require("./routes/stockInRoute"));
-
+app.use("/api/dues", require("./routes/dueRoute"));
+app.use("/api/customers", require("./routes/customerRoute"));
 // Local development
 if (require.main === module) {
   connectDB()

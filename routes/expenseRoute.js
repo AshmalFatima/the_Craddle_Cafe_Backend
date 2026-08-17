@@ -3,8 +3,11 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Expense = require('../models/expense');
 const authMiddleware = require('../authMiddleWare');
+const Product = require("../models/product");
 const User = require("../models/user");
 const VALID_TYPES = ["Cash In", "Cash Out"];
+
+
 
 router.post("/", authMiddleware, async (req, res) => {
     const { name, amount, description, type } = req.body;
@@ -414,5 +417,27 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     }
 });
 
+
+
+//add cash out expense from all previous products 
+router.post("/add-cash-out", authMiddleware, async (req, res) => {
+    try {
+        const products = await Product.find();  
+        for (const product of products) {
+            const cashOutExpense = new Expense({
+                title: `Cash Out for ${product.name} (${product.variantName})`,
+                amount: product.unitPrice * product.unitStock,
+                description: `Cash out expense for product ${product.name} (${product.variantName})`,
+                type: "Cash Out",
+                addedBy: req.user.userId,
+            });
+            await cashOutExpense.save();
+        }   
+        res.status(201).json({ message: 'Cash out expenses added successfully', success: true });
+    }catch (err) {
+        console.error('Error adding cash out expenses:', err);
+        res.status(500).json({ message: 'Server error' });
+    } 
+});
 
 module.exports = router;

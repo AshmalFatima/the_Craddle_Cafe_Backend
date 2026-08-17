@@ -5,6 +5,7 @@ const Product = require('../models/product');
 const Category = require('../models/category');
 const StockIn = require('../models/stockIn');
 const authMiddleware = require('../authMiddleWare');
+const Expense = require('../models/expense');
 
 
 // CREATE product + initial stock-in entry
@@ -43,19 +44,19 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     const unitStock = Number(itemsPerPet) * Number(petStock);
-const cleanName = name.trim().toUpperCase().replace(/\s+/g, '');
-const cleanVariant = variantName.trim().toUpperCase().replace(/\s+/g, '');
+    const cleanName = name.trim().toUpperCase().replace(/\s+/g, '');
+    const cleanVariant = variantName.trim().toUpperCase().replace(/\s+/g, '');
 
 
-const now = new Date();
+    const now = new Date();
 
-const timestamp =
-    `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}` +
-    `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
+    const timestamp =
+        `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}` +
+        `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
 
-const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
-    .toFixed(2)
-    .replace(".", "")}-${timestamp}`;
+    const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
+        .toFixed(2)
+        .replace(".", "")}-${timestamp}`;
 
     try {
         const existingProduct = await Product.findOne({ name: name.trim(), variantName: variantName.trim(), category });
@@ -77,9 +78,19 @@ const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring
         });
 
         await newProduct.save();
-
-        const stockSellingPrice = sellingPriceNum * unitStock;
+          const stockSellingPrice = sellingPriceNum * unitStock;
         const stockCostPrice = Number(petPrice) * Number(petStock);
+        const newExpense = new Expense({
+            title: `Initial stock for ${newProduct.name} (${newProduct.variantName})`,
+            amount: stockCostPrice,
+            description: `Initial stock-in of ${unitStock} units for product ${newProduct.name} (${newProduct.variantName})`,
+            expenseDate: new Date(),
+            addedBy: req.user._id,
+            type: 'Cash Out',
+        });
+        await newExpense.save();
+
+      
 
         const stockInEntry = new StockIn({
             product: newProduct._id,
@@ -101,7 +112,7 @@ const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring
 
     } catch (err) {
         console.error('Error adding product:', err);
-        res.status(500).json({ message: err.message});
+        res.status(500).json({ message: err.message });
     }
 });
 
@@ -116,6 +127,9 @@ router.get('/', authMiddleware, async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
+
+ 
+
 
 
 // UPDATE product details only (name, variant, category, petPrice, sellingPrice, itemsPerPet)
@@ -184,20 +198,20 @@ router.put("/:id", authMiddleware, async (req, res) => {
         // recalculated if itemsPerPet changed
         const unitStock = product.petStock * newItemsPerPet;
 
-   
 
-const cleanName = name.trim();
-const cleanVariant = variantName.trim();
 
-const now = new Date();
+        const cleanName = name.trim();
+        const cleanVariant = variantName.trim();
 
-const timestamp =
-    `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}` +
-    `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
+        const now = new Date();
 
-const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
-    .toFixed(2)
-    .replace(".", "")}-${timestamp}`;
+        const timestamp =
+            `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}` +
+            `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}${String(now.getMilliseconds()).padStart(3, "0")}`;
+
+        const sku = `${cleanName.substring(0, 6).toUpperCase()}-${cleanVariant.substring(0, 6).toUpperCase()}-${unitPrice
+            .toFixed(2)
+            .replace(".", "")}-${timestamp}`;
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
             {
