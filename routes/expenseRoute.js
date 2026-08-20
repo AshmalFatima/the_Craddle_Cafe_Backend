@@ -10,7 +10,7 @@ const VALID_TYPES = ["Cash In", "Cash Out"];
 
 
 router.post("/", authMiddleware, async (req, res) => {
-    const { name, amount, description, type } = req.body;
+    const { name, amount, description, type , paymentMethod} = req.body;
 
     // name/title is now optional — falls back to the type (e.g. "Cash In")
     if (
@@ -47,6 +47,7 @@ router.post("/", authMiddleware, async (req, res) => {
             amount: Number(amount),
             description: description?.trim() || "",
             type: type.trim(),
+            paymentMethod: paymentMethod.trim(),
             addedBy: req.user.userId,
         });
 
@@ -157,6 +158,7 @@ router.get("/search", authMiddleware, async (req, res) => {
         endDate,
         username,
         type,
+        
     } = req.query;
 
     const filter = {};
@@ -355,7 +357,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
 router.put("/:id", authMiddleware, async (req, res) => {
     const { id } = req.params;
-    const { name, amount, description, type } = req.body;
+    const { name, amount, description, type , paymentMethod} = req.body;
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: "Invalid expense ID" });
     }
@@ -387,6 +389,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
         expense.amount = Number(amount);
         expense.description = description?.trim() || "";
         expense.type = type.trim();
+        expense.paymentMethod = paymentMethod.trim();
         await expense.save();
         res.json({ message: "Expense updated successfully", success: true, expense });
     } catch (err) {
