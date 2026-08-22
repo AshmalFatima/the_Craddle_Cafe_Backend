@@ -96,8 +96,47 @@ router.get('/:id',authMiddleware, async (req, res) => {
 });
 
 /**
+ * Build a validated product line for storage.
+ * Accepts either { product, quantity, price } for a catalog item, or
+ * { name, quantity, price } for a manual/custom item (e.g. candies)
+ * that isn't in the Product catalog.
+ * Returns null (and pushes to `errors`) if the line is invalid.
+ */
+function buildProductLine(p, errors) {
+  const quantity = Number(p.quantity);
+  const price = Number(p.price);
+
+  if (!quantity || quantity <= 0) {
+    errors.push('Each product needs a quantity greater than 0');
+    return null;
+  }
+
+  if (price === undefined || price === null || Number.isNaN(price) || price < 0) {
+    errors.push('Each product needs a valid price');
+    return null;
+  }
+
+  const line = {
+    quantity,
+    price,
+    total: quantity * price,
+  };
+
+  if (p.product) {
+    line.product = p.product;
+  } else if (p.name && String(p.name).trim()) {
+    line.name = String(p.name).trim();
+  } else {
+    errors.push('Each product needs either a catalog product or a name for a custom item');
+    return null;
+  }
+
+  return line;
+}
+
+/**
  * POST /api/dues
- * Create a new due. Body: { customer, products: [{product, quantity, price}], paid }
+ * Create a new due. Body: { customer, products: [{product, quantity, price} | {name, quantity, price}], paid }
  */
 router.post('/', authMiddleware, async (req, res) => {
   try {
@@ -108,12 +147,14 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'At least one product is required' });
     }
 
-    const productsWithTotal = products.map((p) => ({
-      product: p.product,
-      quantity: p.quantity,
-      price: p.price,
-      total: p.quantity * p.price,
-    }));
+    const lineErrors = [];
+    const productsWithTotal = products
+      .map((p) => buildProductLine(p, lineErrors))
+      .filter(Boolean);
+
+    if (lineErrors.length) {
+      return res.status(400).json({ message: lineErrors[0] });
+    }
 
     const totalAmount = productsWithTotal.reduce((sum, p) => sum + p.total, 0);
     const remaining = totalAmount - paid;
@@ -178,6 +219,8 @@ router.put('/:id/payment', authMiddleware, async (req, res) => {
 /**
  * PUT /api/dues/:id
  * Edit a due's products / paid amount, recalculates totals.
+ * Products can be catalog items ({product, quantity, price}) or
+ * manual/custom items ({name, quantity, price}).
  */
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
@@ -186,12 +229,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (!due) return res.status(404).json({ message: 'Due not found' });
 
     if (products) {
-      const productsWithTotal = products.map((p) => ({
-        product: p.product,
-        quantity: p.quantity,
-        price: p.price,
-        total: p.quantity * p.price,
-      }));
+      const lineErrors = [];
+      const productsWithTotal = products
+        .map((p) => buildProductLine(p, lineErrors))
+        .filter(Boolean);
+
+      if (lineErrors.length) {
+        return res.status(400).json({ message: lineErrors[0] });
+      }
+
       due.products = productsWithTotal;
       due.totalAmount = productsWithTotal.reduce((sum, p) => sum + p.total, 0);
     }
@@ -230,4 +276,3 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
-
