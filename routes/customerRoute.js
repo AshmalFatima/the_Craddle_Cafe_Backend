@@ -66,25 +66,22 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     return res.status(400).json({ message: 'Invalid customer id' });
   }
 
-  const session = await mongoose.startSession();
-
   try {
     let customer;
     let deletedDuesCount = 0;
 
     try {
-      await session.withTransaction(async () => {
-        customer = await Customer.findById(id).session(session);
+        customer = await Customer.findById(id);
 
         if (!customer) {
           throw Object.assign(new Error('Customer not found'), { status: 404 });
         }
 
-        const duesResult = await Dues.deleteMany({ customer: id }).session(session);
+        const duesResult = await Dues.deleteMany({ customer: id });
         deletedDuesCount = duesResult.deletedCount || 0;
 
-        await Customer.findByIdAndDelete(id).session(session);
-      });
+        await Customer.findByIdAndDelete(id);
+      
     } catch (txErr) {
       // Standalone Mongo (no replica set) throws on startTransaction.
       // Fall back to a non-transactional sequential delete so this still
@@ -112,7 +109,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
     res.status(500).json({ message: err.message });
   } finally {
-    session.endSession();
+    // session.endSession();
   }
 });
 

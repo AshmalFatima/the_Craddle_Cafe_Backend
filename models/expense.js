@@ -16,7 +16,7 @@ const expenseSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["Cash", "Card", "Online"],
+      enum: ["Cash", "Online"],
       required: true,
     },
     type: {
