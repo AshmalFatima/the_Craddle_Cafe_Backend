@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const StockIn = require('../models/stockIn');
 const Product = require('../models/product');
 const authMiddleware = require('../authMiddleWare');
+const Expense = require('../models/expense');
 
 
 // Shared helper: a movement can be specified either in whole pets/cartons (petStock)
@@ -75,6 +76,17 @@ router.post('/in', authMiddleware, async (req, res) => {
         await existingProduct.save();
 
         const populated = await Product.findById(product).populate('category', 'name');
+        //add expense for stock in
+        const newExpense = new Expense({
+            title: `Stock In - ${populated.name} (${populated.variantName})`,
+            amount: stockCostPrice,
+            description: `Stock-in of ${units} units for product ${populated.name} (${populated.variantName})`,
+            expenseDate: new Date(),
+            addedBy: req.user._id,
+            paymentMethod: "Cash",
+            type: "Cash Out"
+        });
+        await newExpense.save();
 
         res.status(201).json({
             success: true,

@@ -86,6 +86,7 @@ router.post('/', authMiddleware, async (req, res) => {
             description: `Initial stock-in of ${unitStock} units for product ${newProduct.name} (${newProduct.variantName})`,
             expenseDate: new Date(),
             addedBy: req.user._id,
+            paymentMethod : "Cash",
             type: 'Cash Out',
         });
         await newExpense.save();
