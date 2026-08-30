@@ -47,8 +47,7 @@ const productReturnSchema = new mongoose.Schema(
     // Admin/user who processed the return
     returnedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+           ref: "User",
     },
 
     // Optional note
