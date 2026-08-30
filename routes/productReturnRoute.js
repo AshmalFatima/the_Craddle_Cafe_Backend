@@ -7,7 +7,7 @@ const Expense = require('../models/expense');
 const ProductReturn = require('../models/productReturn'); // was missing
 const authMiddleware = require('../authMiddleWare');
 
-router.post('/return', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const { productId, quantity, returnType, returnAmount, reason, note } = req.body;
 
   if (!productId || !quantity || !returnType || returnAmount === undefined || !reason) {
@@ -97,6 +97,20 @@ router.post('/return', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error returning product:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const returns = await ProductReturn.find()
+      .populate('product', 'name variantName')
+      .populate('returnedBy', 'username email')
+      .sort({ returnDate: -1 });
+
+    res.status(200).json({ success: true, returns });
+  } catch (error) {
+    console.error('Error fetching product returns:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
