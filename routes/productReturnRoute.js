@@ -5,6 +5,7 @@ const Product = require('../models/product');
 const StockIn = require('../models/stockIn');
 const Expense = require('../models/expense');
 const ProductReturn = require('../models/productReturn'); // was missing
+const authMiddleware = require('../middleware/authMiddleware');
 
 router.post('/return', authMiddleware, async (req, res) => {
   const { productId, quantity, returnType, returnAmount, reason, note } = req.body;
