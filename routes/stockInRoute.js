@@ -97,7 +97,7 @@ router.post('/in', authMiddleware, async (req, res) => {
         });
     } catch (err) {
         console.error("Error adding stock:", err);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: error.message || "Server error" });
     }
 });
 
