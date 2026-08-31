@@ -5,7 +5,7 @@ const Expense = require('../models/expense');
 const authMiddleware = require('../authMiddleWare');
 const Product = require("../models/product");
 const User = require("../models/user");
-const VALID_TYPES = ["Cash In", "Cash Out"];
+const VALID_TYPES = ["Cash In", "Cash Out", "Reinvestment"];
 
 
 
