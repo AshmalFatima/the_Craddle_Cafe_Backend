@@ -30,8 +30,13 @@ function resolveMovementQuantity({ petStock, unitStock, itemsPerPet }) {
 // (typical for a new delivery) or in individual units.
 // Pricing (petPrice, itemsPerPet, sellingPrice) is locked to the product's current values —
 // only the quantity changes here. To change pricing, edit the product itself.
+//
+// `type` and `paymentMethod` describe how this stock's cost is being funded
+// (e.g. type: "Cash Out" | "Reinvestment", paymentMethod: "Cash" | "Online") and are
+// used to log the accompanying Expense entry below. Both are optional and fall back
+// to sane defaults so older clients that don't send them don't start failing.
 router.post('/in', authMiddleware, async (req, res) => {
-    const { product, petStock, unitStock, note, type } = req.body;
+    const { product, petStock, unitStock, note, type, paymentMethod } = req.body;
 
     if (!product) {
         return res.status(400).json({ message: "Please provide a product" });
@@ -76,18 +81,25 @@ router.post('/in', authMiddleware, async (req, res) => {
         await existingProduct.save();
 
         const populated = await Product.findById(product).populate('category', 'name');
-        //add expense for stock in
-      
-        const newExpense = new Expense({
-            title: `Stock In - ${populated.name} (${populated.variantName})`,
-            amount: stockCostPrice,
-            description: `Stock-in of ${units} units for product ${populated.name} (${populated.variantName})`,
-            expenseDate: new Date(),
-            addedBy: req.user._id,
-            paymentMethod: "Cash",
-            type,
-        });
-        await newExpense.save();
+
+        // Log the stock-in cost as an expense. This is supplementary to the
+        // stock movement above — the product/stock have already been saved
+        // successfully, so a failure here must not fail the whole request
+        // (and definitely shouldn't leave stock updated with no response sent).
+        try {
+            const newExpense = new Expense({
+                title: `Stock In - ${populated.name} (${populated.variantName})`,
+                amount: stockCostPrice,
+                description: `Stock-in of ${units} units for product ${populated.name} (${populated.variantName})`,
+                expenseDate: new Date(),
+                addedBy: req.user._id,
+                paymentMethod: paymentMethod || "Cash",
+                type: type || "Cash Out",
+            });
+            await newExpense.save();
+        } catch (expenseErr) {
+            console.error("Error logging stock-in expense:", expenseErr);
+        }
 
         res.status(201).json({
             success: true,
@@ -97,7 +109,7 @@ router.post('/in', authMiddleware, async (req, res) => {
         });
     } catch (err) {
         console.error("Error adding stock:", err);
-        res.status(500).json({ message: error.message || "Server error" });
+        res.status(500).json({ message: err.message || "Server error" });
     }
 });
 
