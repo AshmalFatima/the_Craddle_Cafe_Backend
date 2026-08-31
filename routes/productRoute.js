@@ -10,7 +10,7 @@ const Expense = require('../models/expense');
 
 // CREATE product + initial stock-in entry
 router.post('/', authMiddleware, async (req, res) => {
-    const { category, name, variantName, petStock, itemsPerPet, sellingPrice, petPrice } = req.body;
+    const { category, name, variantName, petStock, itemsPerPet, sellingPrice, petPrice, type } = req.body;
 
     if (!category || !name || !variantName || !petStock || !itemsPerPet || !sellingPrice || !petPrice ||
         !category.trim() || !name.trim() || !variantName.trim() || !petStock.toString().trim() ||
@@ -87,7 +87,7 @@ router.post('/', authMiddleware, async (req, res) => {
             expenseDate: new Date(),
             addedBy: req.user._id,
             paymentMethod : "Cash",
-            type: 'Cash Out',
+            type: type || 'Cash Out',
         });
         await newExpense.save();
 

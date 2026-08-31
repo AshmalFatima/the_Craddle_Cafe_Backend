@@ -31,7 +31,7 @@ function resolveMovementQuantity({ petStock, unitStock, itemsPerPet }) {
 // Pricing (petPrice, itemsPerPet, sellingPrice) is locked to the product's current values —
 // only the quantity changes here. To change pricing, edit the product itself.
 router.post('/in', authMiddleware, async (req, res) => {
-    const { product, petStock, unitStock, note } = req.body;
+    const { product, petStock, unitStock, note, type } = req.body;
 
     if (!product) {
         return res.status(400).json({ message: "Please provide a product" });
@@ -77,6 +77,7 @@ router.post('/in', authMiddleware, async (req, res) => {
 
         const populated = await Product.findById(product).populate('category', 'name');
         //add expense for stock in
+      
         const newExpense = new Expense({
             title: `Stock In - ${populated.name} (${populated.variantName})`,
             amount: stockCostPrice,
@@ -84,7 +85,7 @@ router.post('/in', authMiddleware, async (req, res) => {
             expenseDate: new Date(),
             addedBy: req.user._id,
             paymentMethod: "Cash",
-            type: "Cash Out"
+            type,
         });
         await newExpense.save();
 
