@@ -21,7 +21,7 @@ const expenseSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["Cash In", "Cash Out", "Reinvestment"],
+      enum: ["Cash In", "Cash Out", "Reinvestment", "Personal"],
       required: true,
     },
     expenseDate: {
