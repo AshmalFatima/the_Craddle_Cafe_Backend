@@ -95,14 +95,30 @@ router.get('/', authMiddleware, async (req, res) => {
     const expenseDateFilter = buildDateFilter('expenseDate', startDate, endDate);
     if (expenseDateFilter) expenseQuery.expenseDate = expenseDateFilter;
     const expenses = await Expense.find(expenseQuery).sort({ expenseDate: -1 });
+
+    // IMPORTANT: bucket by exact type. The previous version used
+    // `if (type === 'Cash Out') totalOut += ...; else totalIn += ...;`
+    // which silently folded "Reinvestment" and "Personal" entries into
+    // totalIn, inflating the Cash In figure by however much had been
+    // reinvested or spent personally. Each type now has its own bucket.
     const expenseTotals = expenses.reduce(
       (acc, e) => {
         if (e.type === 'Cash Out') acc.totalOut += e.amount || 0;
-        else acc.totalIn += e.amount || 0;
+        else if (e.type === 'Cash In') acc.totalIn += e.amount || 0;
+        else if (e.type === 'Reinvestment') acc.totalReinvest += e.amount || 0;
+        else if (e.type === 'Personal') acc.totalPersonal += e.amount || 0;
         return acc;
       },
-      { totalIn: 0, totalOut: 0 }
+      { totalIn: 0, totalOut: 0, totalReinvest: 0, totalPersonal: 0 }
     );
+
+    // Cash actually still on hand: money in, minus money out, minus
+    // whatever was recycled into stock or spent personally.
+    expenseTotals.netCash =
+      expenseTotals.totalIn -
+      expenseTotals.totalOut -
+      expenseTotals.totalReinvest -
+      expenseTotals.totalPersonal;
 
     // Dues: overall remaining and those in date range
     const duesQuery = {};
