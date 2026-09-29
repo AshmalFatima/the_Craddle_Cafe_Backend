@@ -197,6 +197,79 @@ router.post('/out', authMiddleware, async (req, res) => {
 // Stock Out = 12 pets
 // Remove 2 pets -> movement becomes 10 pets and 2 pets are
 // returned to the product's current stock.
+
+
+// STOCK OUT (BULK) — zero out the entire stock of several products at once.
+// Each product gets its own "out" movement for its full remaining stock.
+router.post('/out/bulk', authMiddleware, async (req, res) => {
+    const { products, note } = req.body;
+
+    if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ message: 'Please select at least one product' });
+    }
+    if (!products.every((id) => mongoose.Types.ObjectId.isValid(id))) {
+        return res.status(400).json({ message: 'Invalid product ID in selection' });
+    }
+
+    try {
+        const results = [];
+        const skipped = [];
+
+        for (const id of products) {
+            const product = await Product.findById(id);
+            if (!product) {
+                skipped.push(id);
+                continue;
+            }
+
+            const units = Number(product.unitStock) || 0;
+            if (units <= 0) {
+                skipped.push(id); // nothing to remove
+                continue;
+            }
+
+            const { itemsPerPet, unitPrice, petPrice, sellingPrice } = product;
+            const pets = Number((units / itemsPerPet).toFixed(4));
+
+            const stockCostPrice = unitPrice * units;
+            const stockSellingPrice = sellingPrice * units;
+
+            const stockEntry = await StockIn.create({
+                product: id,
+                type: 'out',
+                petStock: pets,
+                unitStock: units,
+                itemsPerPet,
+                unitPrice,
+                petPrice,
+                stockSellingPrice,
+                stockCostPrice,
+                profit: stockSellingPrice - stockCostPrice,
+                note: note || 'Stock cleared'
+            });
+
+            product.unitStock = 0;
+            product.petStock = 0;
+            await product.save();
+
+            results.push(stockEntry);
+        }
+
+        if (results.length === 0) {
+            return res.status(400).json({ message: 'None of the selected products have stock to remove' });
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Stock cleared for ${results.length} product(s)`,
+            cleared: results.length,
+            skipped: skipped.length
+        });
+    } catch (err) {
+        console.error('Error bulk removing stock:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 router.put('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { action, pets } = req.body;
